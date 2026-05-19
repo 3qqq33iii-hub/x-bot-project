@@ -1,16 +1,13 @@
 import os
 import sqlite3
+import requests
 from flask import Flask, render_template_string, request, redirect, url_for, session
-from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
 app.secret_key = 'harib_secured_multiuser_system_2026'
 
 ADMIN_PASSWORD = "123" 
-UPLOAD_FOLDER = 'static/uploads'
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+IMGBB_API_KEY = "6b7b7a66099bfae7e6e2329f6350f0ec"
 
 def init_db():
     conn = sqlite3.connect('database.db')
@@ -64,8 +61,6 @@ def home():
         cursor.execute('SELECT * FROM products WHERE merchant_phone = ? ORDER BY id DESC', (merchant_phone,))
         my_products = cursor.fetchall()
         
-    cursor.execute('SELECT * FROM users ORDER BY id DESC')
-    all_users = cursor.fetchall()
     conn.close()
 
     html_content = """
@@ -180,7 +175,7 @@ def home():
                 <form action="/add_product" method="POST" enctype="multipart/form-data">
                     <div class="form-group">
                         <label>اسمك التجاري:</label>
-                        <input type="text" name="merchant_name" class="form-control" required>
+                        <input type="text" name="merchant_name" value="عبدالله علوي" class="form-control" required>
                     </div>
                     <div class="form-group" style="background:#f9f9f9; padding:8px; border-radius:6px;">
                         <input type="checkbox" name="show_name" value="1" id="showNameCheck" checked>
@@ -212,7 +207,7 @@ def home():
                         <textarea name="details" class="form-control" rows="2" required></textarea>
                     </div>
                     <div class="form-group">
-                        <label>اختر صورة المنتج:</label>
+                        <label>اختر صورة المنتج مباشرة من الاستوديو:</label>
                         <input type="file" name="image_file" class="form-control" accept="image/*" required>
                     </div>
                     <button type="submit" class="submit-btn">نشر البضاعة فوراً</button>
@@ -317,7 +312,7 @@ def home():
     </body>
     </html>
     """
-    return render_template_string(html_content, active_products=db_products, my_products=my_products, all_users=all_users, current_cat=category_filter, user_phone=user_phone, merchant_phone=merchant_phone, is_admin=is_admin)
+    return render_template_string(html_content, active_products=db_products, my_products=my_products, current_cat=category_filter, user_phone=user_phone, merchant_phone=merchant_phone, is_admin=is_admin)
 
 @app.route('/customer_login', methods=['POST'])
 def customer_login():
@@ -343,13 +338,20 @@ def add_product():
     details = request.form.get('details')
     
     file = request.files.get('image_file')
+    image_url = "https://images.unsplash.com/photo-1541014741259-df5290bc008c?w=400"
+    
     if file and file.filename != '':
-        filename = secure_filename(file.filename)
-        file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        file.save(file_path)
-        image_url = '/' + file_path
-    else:
-        image_url = "https://images.unsplash.com/photo-1541014741259-df5290bc008c?w=400"
+        try:
+            img_data = file.read()
+            response = requests.post(
+                "https://api.imgbb.com/1/upload",
+                data={"key": IMGBB_API_KEY},
+                files={"image": img_data}
+            )
+            if response.status_code == 200:
+                image_url = response.json()['data']['url']
+        except Exception as e:
+            print("Error uploading image:", e)
     
     conn = sqlite3.connect('database.db')
     cursor = conn.cursor()
